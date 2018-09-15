@@ -1,5 +1,5 @@
 ---
-title: "Classifier_calculationsnew_server"
+title: "Classifier_AMLsubtypes"
 author: "Stefanie Herresthal"
 ---
 
@@ -11,42 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 ```
 
-
-# Prepare data info files
-
-
-# Server: Run docker 
-```{sh}
-# docker run -it --rm -v /data/data-04_b_22.7TB/Data_AML/:/data r-base /bin/bash
-
-#Blade 12:
-#sudo docker run -it --rm -v /home/marc/steffi/:/data r-base /bin/bash
-
-# Things to be updated in Container:
-apt-get update
-apt-get install libssl-dev/unstable
-apt-get install libcurl4-openssl-dev libxml2-dev
-```
-
--d detached MOdus: Container läuft weiter, auch wenn die Verbindung abbricht
-```{r}
-docker run -d -v /data/data-04_b_22.7TB/Data_AML/:/data r-base /bin/bash
-
-# Nachträglich in container einwählen: Welche dockercontainer laufen?
-docker ps #--> Container ID suchen
-docker exec -it CONTAINER-ID R /bin/bash
-
-# blade 3:
-docker exec -it d5d69916591f /bin/bash
-```
-
-Start R
-
-```{sh}
-R
-```
-
-Install packages
+# Install packages
 
 ```{r}
 source("https://bioconductor.org/biocLite.R")
@@ -86,73 +51,27 @@ library("dplyr")
 
 
 ```{r}
+# load environment variables for R 
+source(paste(Sys.getenv(c("STEFFI_R_HOME")), "Classifier/R_envo.R", sep = ""))
 
-source("E:/Stefanie/Classifier/Git/Functions.R")
-load("E:/Stefanie/Classifier/Paper/Scripts/Datasets.RData")
-#load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-#source("/data/Results/Paper/load_packages.R")
-
+source(paste(scripts_location, "Functions.R", sep = ""))
+load(paste(data_location, "Datasets.RData", sep = ""))
 ```
 
 # Random sampling: Dataset 1, 1 permutation
 ```{r}
-test <- classify(ts = data.1[,1:100], 
-        classes.ts = info.1$Condition[1:100], 
-        vs = data.2, 
-        info.2$Condition, 
-        classifiers = "LASSO", 
-        predictions_table = T)
-
-# rank transformation of all samples, then random sampling 50/ 50
-
-data.all <- cbind(data.1, data.2, data.3)
-info.all <- rbind(info.1, info.2, info.3) 
-dim(data.all)
-dim(info.all)
-identical(rownames(info.all), colnames(data.all))
-
-data.all.rank <- data.all
-data.all.rank <- t(data.all.rank)
-data.all.rank <- apply(data.all.rank, 2, rank)/nrow()
-
 randomsampling(info = info.1, # metadata
                data = data.1, # data
-               dir = "E:/Stefanie/Test", # output directory
+               dir = output_subtypes, # output directory
                nperm = 2, # number of permutations
                server = F, # run on server?
                classifiers. = c("LASSO"),
-               size.ts = 10, # training set size
+               size.ts = 50, # training set size
                size.vs = 500, # validation set size
                leukemia = F, # run only leukemia samples
-               print_predictions = F,  # output also individual prediction results
-               cores = 1 #)
+               print_predictions = T,  # output also individual prediction results
+               cores = 2 #)
 )
-
-
-
-crossplatform(nperm = 2,  
-                    size.ts = 300, 
-                    info.ts = info.1[1:300,], 
-                    data.ts = data.1[,1:300],
-                    info.vs = info.2[1:1000,], 
-                    data.vs = data.2[,1:1000],
-                    size.vs = 1000,
-                    classifiers. = c("KNN", "LASSO"),
-                    server = T,
-                    cores = 1,
-                    dir = "E:/Stefanie/Test/" ,
-              print_predictions = T)
-
-ntest <- 500
-permute_ts_vs_random(info = info.1, 
-                     data = data.1, 
-                     server = T,
-                     size.ts = 500, 
-                     size.vs = 2000,
-                     cores = 60,
-                     Leukemia = F,
-                     dir = "/data/Results/Paper/Dataset_1/all/")
-
 
 ```
 
