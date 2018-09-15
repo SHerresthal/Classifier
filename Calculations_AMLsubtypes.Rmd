@@ -58,24 +58,55 @@ source(paste(scripts_location, "Functions.R", sep = ""))
 load(paste(data_location, "Datasets.RData", sep = ""))
 ```
 
-# Random sampling: Dataset 1, 1 permutation
+# Random sampling: Dataset 1
 ```{r}
 randomsampling(info = info.1, # metadata
                data = data.1, # data
-               dir = output_subtypes, # output directory
-               nperm = 2, # number of permutations
+               dir = paste(output_subtypes, "Dataset_1", sep = ""), # output directory
+               nperm = 100, # number of permutations
                server = server_var, # run on server?
                classifiers. = c("LASSO"),
-               size.ts = 50, # training set size
+               size.ts = 2000, # training set size
                size.vs = 500, # validation set size
                leukemia = F, # run only leukemia samples
                print_predictions = T,  # output also individual prediction results
-               cores = 2 #)
+               cores = ncores #)
 )
 
 ```
 
+# Random samling: Dataset 2
+```{r}
+randomsampling(info = info.2, # metadata
+               data = data.2, # data
+               dir = paste(output_subtypes, "Dataset_2", sep = ""), # output directory
+               nperm = 100, # number of permutations
+               server = server_var, # run on server?
+               classifiers. = c("LASSO"),
+               size.ts = ncol(data.2)-1670, # training set size
+               size.vs = 1670, # validation set size
+               leukemia = F, # run only leukemia samples
+               print_predictions = T,  # output also individual prediction results
+               cores = ncores #)
+)
+```
 
+# Random samling: Dataset 3
+```{r}
+randomsampling(info = info.3, # metadata
+               data = data.3, # data
+               dir = paste(output_subtypes, "Dataset_3", sep = ""), # output directory
+               nperm = 100, # number of permutations
+               server = server_var, # run on server?
+               classifiers. = c("LASSO"),
+               size.ts = ncol(data.3)-236, # training set size
+               size.vs = 236, # validation set size
+               leukemia = F, # run only leukemia samples
+               print_predictions = T,  # output also individual prediction results
+               cores = ncores #)
+)
+
+```
 
 
 
