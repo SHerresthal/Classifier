@@ -7,6 +7,15 @@ author: "Stefanie Herresthal"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Source functions
+```{r}
+source("E:/Stefanie/Classifier/Git/Functions.R")
+```
+
+
+# Prepare data info files
+
+
 # Server
 ```{sh}
 

@@ -1,14 +1,15 @@
 # core function for predicting with 9 algorithms: 
 # linear, radial, polynomial, sigmoid support vector machine, prediction analyis of microarrays (PAM), linear discriminant analysis (LDA), k nearest neighbours (KNN), LASSO, random forest (RTF)
 
-classify <- function(ts, 
-                     classes.ts, 
-                     vs, 
-                     classes.vs,  
+classify <- function(ts, # training set
+                     classes.ts, # true classes of the training set
+                     vs, # validation set
+                     classes.vs,  # true classes ofthe validation set
                      classifiers = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"), 
-                     measures = c("AUC", "train.error", "test.error", "SENS", "SPEC", "ACC"),
-                     predictions_table = F, 
-                     nperm = 1){
+                     measures = c("AUC", "train.error", "test.error", "SENS", "SPEC", "ACC"), # measures to be calculated
+                     predictions_table = F, # should a list be printed that shows the individual results for each validation sample
+                     nperm = 1) # number of permutations
+  {
   # create result table
   results <- data.table(classifier = c(rep(classifiers, each = (length(measures)))), 
                         measure = rep(measures, length(classifiers)),
@@ -140,13 +141,15 @@ randomsampling <- function(info, # metadata
                            data, # data
                            dir, # output directory
                            nperm = 10, # number of permutations
-                           server = F, 
+                           server = F, # run on server?
                            classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
-                           size.ts = 50,
-                           size.vs = 500,
-                           leukemia = F,
-                           print_values = T, 
-                           cores = 12){ 
+                           size.ts = 50, # training set size
+                           size.vs = 500, # validation set size
+                           leukemia = F, # run only leukemia samples
+                           print_predictions = F,  # output also individual prediction results
+                           cores = 12 # cores for parallel processing
+                           )
+  { 
   
   ifelse(server == T, cl <- makeCluster(cores, outfile = ""), cl <- makeCluster(1, outfile = getwd()))
   
@@ -201,19 +204,19 @@ randomsampling <- function(info, # metadata
 }
 
 # function for cross-study sampling
-crossstudy <- function(nperm=10, 
-                       server = F, 
+crossstudy <- function(nperm=10, # number of permutations
+                       server = F, # run on server?
                        classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
-                       info, 
-                       data,
-                       size.ts = 10,
-                       size.vs = 500,
-                       dir, 
-                       print_values = T, 
-                       cores = 12, 
-                       leukemia = F, 
-                       indices.test. = indices.test,
-                       indices.train. = indices.train,
+                       info, # metadata file
+                       data, # data 
+                       size.ts = 10, # size of training set
+                       size.vs = 500, # size of testing set
+                       dir, # output directory
+                       print_predictions = F, # should individual prediction results be printed
+                       cores = 12, # number of cores
+                       leukemia = F, # should prediction be run only on leukemia samples?
+                       indices.test. = indices.test, # indices test set
+                       indices.train. = indices.train, # indices training set
                        y.train. = y.train){ 
   
   ifelse(server == T, cl <- makeCluster(cores, outfile = ""), cl <- makeCluster(1, outfile = getwd()))
@@ -288,19 +291,20 @@ crossstudy <- function(nperm=10,
 
 
 # cross-platform prediction
-crossplatform <- function(nperm=10, 
-                                server = F, 
+crossplatform <- function(nperm=10, # number of permutations
+                                server = F, # run on server
                                 classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
-                                info.ts, 
-                                data.ts,
-                                info.vs, 
-                                data.vs, 
-                                size.ts = 10,
-                                size.vs = 500,
-                                dir, 
-                                print_values = T, 
-                                cores = 12, 
-                                rank = F){ 
+                                info.ts, # metadata for training set
+                                data.ts, # trainig set data
+                                info.vs, # metadata for testing set
+                                data.vs, # testing set
+                                size.ts = 10, # size of testing set (randomly subsampled)
+                                size.vs = 500, # size of validation set (randomly subsamples)
+                                dir, # output directory
+                                print_predictions = F, # should individual predictions be printes
+                                cores = 12, # numbers of cores
+                                rank = F # should rank transformation be performed
+                          ){ 
   
   ifelse(server == T, cl <- makeCluster(cores, outfile = ""), cl <- makeCluster(1, outfile = getwd()))
   
