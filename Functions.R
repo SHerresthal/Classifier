@@ -204,7 +204,13 @@ randomsampling <- function(info, # metadata
   }
   
   # write output to folder
+  if(print_predictions == T){
+    write.table(res.values, file = paste("results.predictions", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+    
+    
+  } else {
   write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+  }
   stopCluster(cl)
   
   
@@ -279,8 +285,12 @@ crossstudy <- function(nperm=10, # number of permutations
     classes.vs. <- info.vs.$Condition
     
     # calculations
-    result <- classify(ts = ts., classes.ts = classes.ts., vs = vs., classes.vs = classes.vs., nperm = j, classifiers = classifiers.)
-    list(result)
+    result <- classify(ts = ts., classes.ts = classes.ts., vs = vs., classes.vs = classes.vs., nperm = j, classifiers = classifiers., predictions_table = print_predictions)
+    if(print_predictions == T){
+      list(result[[2]])
+    } else {
+      list(result)
+    }
   }
   setwd(dir)
   
@@ -291,8 +301,15 @@ crossstudy <- function(nperm=10, # number of permutations
   }
   
   # write output to folder
-  write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+  if(print_predictions == T){
+    write.table(res.values, file = paste("results.predictions", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+    
+    
+  } else {
+    write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+  }
   stopCluster(cl)
+  
 }
 
 
@@ -356,41 +373,39 @@ crossplatform <- function(nperm=10, # number of permutations
     classes.ts. <- info.ts.$Condition
     classes.vs. <- info.vs.$Condition
     
+  
     result <- classify(ts = ts., 
                        classes.ts = classes.ts., 
                        vs = vs., 
                        classes.vs = classes.vs., 
                        nperm = j, 
-                       classifiers = classifiers.,
+                       classifiers = classifiers., 
                        predictions_table = print_predictions)
-    list(result)
+    if(print_predictions == T){
+      list(result[[2]])
+    } else {
+      list(result)
+    }
   }
   setwd(dir)
   
-  if(print_predictions == T){
-    res.predictions <- data.table()
-    res.values <- data.table()
-    for (i in 1:nperm){
-      res.predictions <- rbind(res.predictions, result[[i*2 - 1]])
-      res.values <- rbind(res.values, result[[i*2]])
-    }  
-  write.table(res.predictions, file = paste("results.predictions", "Perm", nperm, "sizeTS", size.ts, "txt", sep = "."), quote = F, sep = "\t")
-  }
-    
-  else {
-    res.values <- data.table()
-    for (i in 1:nperm){
+  # reorder the output to a data frame
+  res.values <- data.table()
+  for (i in 1:nperm){
     res.values <- rbind(res.values, result[[i]])
-    }  
-    
   }
-    write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "txt", sep = "."), quote = F, sep = "\t")
   
-  
+  # write output to folder
+  if(print_predictions == T){
+    write.table(res.values, file = paste("results.predictions", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+    
+    
+  } else {
+    write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+  }
   stopCluster(cl)
-  
 }
-
+ 
 
 
 
