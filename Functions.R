@@ -1,55 +1,70 @@
-classify <- function(ts, classes.ts, vs, classes.vs,  
+# core function for predicting with 9 algorithms: 
+# linear, radial, polynomial, sigmoid support vector machine, prediction analyis of microarrays (PAM), linear discriminant analysis (LDA), k nearest neighbours (KNN), LASSO, random forest (RTF)
+
+classify <- function(ts, 
+                     classes.ts, 
+                     vs, 
+                     classes.vs,  
                      classifiers = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"), 
                      measures = c("AUC", "train.error", "test.error", "SENS", "SPEC", "ACC"),
-                     predictions_table = F, nperm = 1, 
-                     opt_cutoff = T, set_cutoff = 0.5){
-  
+                     predictions_table = F, 
+                     nperm = 1){
+  # create result table
   results <- data.table(classifier = c(rep(classifiers, each = (length(measures)))), 
                         measure = rep(measures, length(classifiers)),
                         value = as.numeric(0), 
                         perm = nperm,
-                        number_features = dim(ts)[1], 
-                        size.ts = dim(ts)[2])
+                        number_features = ifelse(is.vector(ts), 1, dim(ts)[1]), 
+                        size.ts = ifelse(is.vector(ts), length(ts), dim(ts)[2]))
   
-  result.predictions <- data.table(Filename = colnames(vs),
-                                   true_class = classes.vs, 
-                                   perm = nperm)
+  if(is.vector(vs) == T){
+    result.predictions <- data.table(Filename = names(vs),
+                                     true_class = classes.vs, 
+                                     perm = nperm)
+    
+  }else{
+    result.predictions <- data.table(Filename = colnames(vs),
+                                     true_class = classes.vs, 
+                                     perm = nperm)
+  }
   
+  if(is.matrix(ts)){
+  if(dim(ts)[1] > 2){
   print(paste("transpose"))
   ts  <- t(ts)
   vs <- t(vs)
   for (i in 1:length(classifiers)){
     
     if (classifiers[i] == "SVM_linear"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <-  svm(ts, as.factor(classes.ts), kernel="linear", cross=10, probability = TRUE)
       pred.all <- attr(predict(model.temp, vs, probability=T), "probabilities")
-      pred.dist <- pred.all[,which(colnames(pred.all)=="X2")]
+      pred.dist <- pred.all[,which(colnames(pred.all)=="CONTROL")]
       train.error <- 1- mean(predict(model.temp, ts) == classes.ts)
     }
     if (classifiers[i] == "SVM_radial"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp  <- svm(ts, as.factor(classes.ts), kernel="radial", cross=10, probability = TRUE)
       pred.all <- attr(predict(model.temp, vs, probability=T), "probabilities")
       pred.dist <- pred.all[,which(colnames(pred.all)=="CONTROL")]
       train.error <- 1- mean(predict(model.temp, ts) == classes.ts)
     }
     if (classifiers[i] == "SVM_polynomial"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <- svm(ts, as.factor(classes.ts), kernel="polynomial", cross=10, probability = TRUE)
       pred.all <- attr(predict(model.temp, vs, probability=T), "probabilities")
       pred.dist <- pred.all[,which(colnames(pred.all)=="CONTROL")]
       train.error <- 1- mean(predict(model.temp, ts) == classes.ts)
     }
     if (classifiers[i] == "SVM_sigmoid"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <- svm(ts, as.factor(classes.ts), kernel="sigmoid", cross=10, probability = TRUE)
       pred.all <- attr(predict(model.temp, vs, probability=T), "probabilities")
       pred.dist <- pred.all[,which(colnames(pred.all)=="CONTROL")]
       train.error <- 1- mean(predict(model.temp, ts) == classes.ts)
     }
     if (classifiers[i] == "PAM"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <- pamr.train(list(x = as.matrix(t(ts)), threshold = 0, y = classes.ts))
       pred.all <- pamr.predict(model.temp, as.matrix(t(vs)), 0, type="posterior")
       pred.dist <- pred.all[,which(colnames(pred.all)=="CONTROL")]
@@ -57,15 +72,16 @@ classify <- function(ts, classes.ts, vs, classes.vs,
       
     }
     if (classifiers[i] == "LDA"){
-      print(paste(classifiers[i]))
-      model.temp <- lda(x = ts, grouping = classes.ts)
-      model.pred <- predict(model.temp, vs)$posterior
+      print(paste(classifiers[i], Sys.time()))
+      subset <- colSums(ts)!=0
+      ts.lda <- ts[,subset]
+      model.temp <- lda(x = ts.lda, grouping = classes.ts)
+      model.pred <- predict(model.temp, vs[,subset])$posterior
       pred.dist <- model.pred[,which(colnames(model.pred)=="CONTROL")]
       train.error <- 1- mean(predict(model.temp)$class == classes.ts)
-      
     }
     if (classifiers[i] == "KNN"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <- knn(train = ts, test = ts, cl = as.factor(classes.ts), k = 6)
       train.error <- 1- mean(model.temp == classes.ts)
       model.temp <- knn(train = ts, test = vs, cl = as.factor(classes.ts), k = 6, prob = T)
@@ -73,46 +89,21 @@ classify <- function(ts, classes.ts, vs, classes.vs,
       pred.dist <- ifelse(model.temp == "CASE", 1-pred, pred)
     }
     if (classifiers[i] == "LASSO"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <- cv.glmnet(x = ts, y = as.factor(classes.ts), family = "binomial", alpha = 1) # cv to find optimal s (penaltly parameter lambda)
       train.error <- 1- mean(predict.cv.glmnet(model.temp, newx = ts, type = "class") == classes.ts)
       pred.dist <- predict(model.temp, newx = vs, type = "response", prob = T, s = model.temp$lambda.min) # prediction using optimal lambda
     }
     if (classifiers[i] == "RTF"){
-      print(paste(classifiers[i]))
+      print(paste(classifiers[i], Sys.time()))
       model.temp <-  randomForest(x = ts, y = as.factor(classes.ts), importance = T)
       train.error <- 1- mean(predict(model.temp, newdata = ts) == classes.ts)
       pred.dist <- predict(model.temp, newdata = vs, type = "prob")[,which(colnames(pred.all)=="CONTROL")]
     }
     result.predictions$probablity_control <- pred.dist
     AUC <- performance(prediction(pred.dist,as.factor(classes.vs)),measure="auc")@y.values[[1]]
-    
-    if (opt_cutoff == T){
-      
-      position <- which((performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]] + 
-                           performance(prediction(pred.dist,as.factor(classes.vs)),measure="spec")@y.values[[1]]) 
-                        == max((performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]] + 
-                                  performance(prediction(pred.dist,as.factor(classes.vs)),measure="spec")@y.values[[1]])))
-      if (length(position) >1){
-        which(performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]][position] 
-              == max(performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]][position]))
-        position <- position[which(performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]][position] 
-                                   == max(performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]][position]))]
-        if (length(position) > 1){print("error: too many maxima")}
-      }
-      
-      cutoff <- performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@x.values[[1]][position]
-      SENS <- performance(prediction(pred.dist,as.factor(classes.vs)),measure="sens")@y.values[[1]][position]
-      SPEC <- performance(prediction(pred.dist,as.factor(classes.vs)),measure="spec")@y.values[[1]][position]
-      test.error <- performance(prediction(pred.dist,as.factor(classes.vs)),measure="err")@y.values[[1]][position]
-      ACC <- performance(prediction(pred.dist,as.factor(classes.vs)),measure="acc")@y.values[[1]][position]
-      
-      result.predictions[[classifiers[i]]] <- ifelse(pred.dist >= cutoff, "CONTROL", "CASE") 
-    }
-    
-    else{
-      cutoff <- set_cutoff
-      result.predictions[[classifiers[i]]] <- ifelse(pred.dist >= cutoff, "CONTROL", "CASE") 
+
+      result.predictions[[classifiers[i]]] <- ifelse(pred.dist >= 0.5, "CONTROL", "CASE") 
       test.error <- 1 - mean(result.predictions[[classifiers[i]]] == classes.vs)
       P <- sum(result.predictions[[classifiers[i]]] == "CASE") # all positive predictions
       TP <- sum(classes.vs[which(result.predictions[[classifiers[i]]] == "CASE")] == "CASE") # true positives
@@ -123,10 +114,10 @@ classify <- function(ts, classes.ts, vs, classes.vs,
       FN <- sum(classes.vs[which(result.predictions[[classifiers[i]]] == "CONTROL")] == "CASE") # false negatives
       
       SENS <- TP/P
-      ifelse(N > 0, SPEC <- TN/N, SPEC <- 0)
+      SPEC <- ifelse(N > 0, TN/N, 0)
       ACC <- (TP+TN)/(TP+FP+FN+TN)
       
-    }
+
     
     # get results    
     if ("AUC" %in% measures){results[classifier == classifiers[i] & measure == "AUC"]$value <- AUC}
@@ -135,107 +126,54 @@ classify <- function(ts, classes.ts, vs, classes.vs,
     if ("SENS" %in% measures){results[classifier == classifiers[i] & measure == "SENS"]$value <- SENS}
     if ("SPEC" %in% measures){results[classifier == classifiers[i] &  measure == "SPEC"]$value <-  SPEC}    
     if ("ACC" %in% measures){results[classifier == classifiers[i] & measure == "ACC"]$value <-  ACC} 
-    results$cutoff <- cutoff
+    }
   }
-  
+  }
   print(paste("returning results"))
   if (predictions_table == T){
     return(list(results, result.predictions))
   } else {return(results)}
 }
 
-
-
-
-
-### Änderung Case Control 1 2
-DE_genes <- function(ts, classes.ts = info.training$Condition, 
-                     method = "onewayLIMMA", FC = 2, pval = 0.05, adj =T, 
-                     batch = info.training$Study)
-{
-  if (method == "twowayLIMMA"){
-    design <- model.matrix(~0 + droplevels(classes.ts) + droplevels(batch))
-    colnames(design) <- as.character(c(levels(droplevels(classes.ts)), levels(droplevels(batch))[-1]))
-    cm <- makeContrasts(Condition = X1-X2, levels = design) 
-    fit <- lmFit(ts, design)# for lmFit genes in rows
-    fit <- contrasts.fit(fit, cm)
-    fit <- eBayes(fit)
-    genes <- topTable(fit,sort="none",n=Inf)
-    genes$FC <- logratio2foldchange(genes$logFC)
-    
-    if (adj == T){
-      DE.ts <- rownames(genes[(genes$FC >= FC | genes$FC <= -FC) & genes$adj.P.Val < pval,])
-    } else {
-      DE.ts <- rownames(genes[(genes$FC >= FC | genes$FC <= -FC) & genes$P.Value < pval,])
-    }
-  }
+# random sampling of case and control samples in each training and test set
+randomsampling <- function(info, # metadata
+                           data, # data
+                           dir, # output directory
+                           nperm = 10, # number of permutations
+                           server = F, 
+                           classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
+                           size.ts = 50,
+                           size.vs = 500,
+                           leukemia = F,
+                           print_values = T, 
+                           cores = 12){ 
   
-  if (method == "onewayLIMMA"){
-    design <- model.matrix(~0 + droplevels(classes.ts))
-    colnames(design) <- as.character(c(levels(classes.ts)))
-    cm <- makeContrasts(Condition = X1-X2, levels = design) 
-    fit <- lmFit(ts, design)# for lmFit genes in rows
-    fit <- contrasts.fit(fit, cm)
-    fit <- eBayes(fit)
-    genes <- topTable(fit,sort="none",n=Inf)
-    genes$FC <- logratio2foldchange(genes$logFC)
-    
-    if (adj == T){
-      DE.ts <- rownames(genes[(genes$FC >= FC | genes$FC <= -FC) & genes$adj.P.Val < pval,])
-    } else {
-      DE.ts <- rownames(genes[(genes$FC >= FC | genes$FC <= -FC) & genes$P.Value < pval,])
-    }
-  }
-  
-  if (method == "ttest"){
-    DE.ts <- getDEgenes(ts[,which(classes.ts=="X1")],ts[,which(classes.ts=="X2")],fc=FC ,pval=pval, teststat="t")
-  }
-  
-  if (method == "none"){
-    DE.ts <- rownames(data)  
-  }
-  
-  return(DE.ts)
-}
-
-library(doParallel)
-
-permute_ts_vs_parallel <- function(nperm=10, 
-                                   server = F, 
-                                   classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
-                                   info = info.training, 
-                                   data = data.training.rma.trimmed,
-                                   size.ts.case = 50,
-                                   size.ts.con = 50,
-                                   size.vs.case = 500,
-                                   size.vs.con = 500,
-                                   dir = "E:/Stefanie/Test/", 
-                                   fc = 2, pv = 0.05, adjust = T, 
-                                   remove_batch_in_permutations = T, 
-                                   opt_cutoff. = T,
-                                   print_DEgenes = T,
-                                   print_values = T){ 
-  ifelse(server == T, cl <- makeCluster(12, outfile = ""), cl <- makeCluster(1, outfile = "E:/Stefanie/Test/test.txt"))
+  ifelse(server == T, cl <- makeCluster(cores, outfile = ""), cl <- makeCluster(1, outfile = getwd()))
   
   registerDoParallel(cl)
   
   result <- foreach(j = 1:nperm,
                     .combine = rbind,
                     .packages = c("randomForest", "data.table", "class", "e1071", "ROCR", "multtest", "pamr", "MASS", "glmnet", "dplyr", "limma", "randomForest", "gtools"),
-                    .export = c("DE_genes", "classify")
+                    .export = c("classify")
   ) %dopar% {
     print(paste("Permutation", j, sep = ":"))
     
     info$Filename <- as.character(info$Filename)
-    set.seed(j)
-    files.ts <- c(sample_n(info[info$Condition == "CASE",], size = size.ts.case)$Filename, sample_n(info[info$Condition == "CONTROL",], size = size.ts.con)$Filename)
-    set.seed(j)
-    files.vs <- c(sample_n(info[!info$Filename %in% files.ts & info$Condition == "CASE",], size = size.vs.case)$Filename, 
-                  sample_n(info[!info$Filename %in% files.ts & info$Condition == "CONTROL",], size = size.vs.con)$Filename)
+    if (leukemia == F){
+      set.seed(j)
+      files.ts <- c(sample(info$Filename, size = size.ts))
+      set.seed(j)
+      files.vs <- c(sample_n(info[!info$Filename %in% files.ts,], size = size.vs)$Filename)
+    } else {
+      set.seed(j)
+      files.ts <- c(sample_n(info[info$Disease %in% c("AML", "AMKL", "ALL", "CLL", "CML", "MDS", "DS transient myeloproliferative disorder", "T.ALL"), ], size = size.ts)$Filename)
+      set.seed(j)
+      files.vs <- c(sample_n(info[!info$Filename %in% files.ts & info$Disease %in% c("AML", "AMKL", "ALL", "CLL", "CML", "MDS", "DS transient myeloproliferative disorder", "T.ALL"),], size = size.vs)$Filename)
+    }
     
     ts. <- data[,files.ts]
     vs. <- data[,files.vs]
-    
     info.ts. <- info[info$Filename %in% files.ts,]
     info.vs. <- info[info$Filename %in% files.vs,]
     
@@ -247,37 +185,181 @@ permute_ts_vs_parallel <- function(nperm=10,
     classes.ts. <- info.ts.$Condition
     classes.vs. <- info.vs.$Condition
     
-    if(remove_batch_in_permutations == T){
-      print("batch removal")
-      design <- model.matrix(~0 + as.factor(info.ts.$Study))
-      colnames(design) <- levels(as.factor(info.ts.$Study))
-      library(limma)
-      ts. <- removeBatchEffect(ts., batch = as.factor(as.factor(info.ts.$Study)), design = design) 
-    }
-    
-    probes <- DE_genes(ts = ts., classes.ts = classes.ts., FC = fc, pval = pv, adj = adjust)
-    result <- classify(ts = ts.[probes,], classes.ts = classes.ts., vs = vs.[probes,], classes.vs = classes.vs., nperm = j, classifiers = classifiers., opt_cutoff = opt_cutoff.)
-    list(result, data.frame(genes = probes, perm = j))
+    result <- classify(ts = ts., classes.ts = classes.ts., vs = vs., classes.vs = classes.vs., nperm = j, classifiers = classifiers.)
+    list(result)
   }
-  if(print_values == T){
   setwd(dir)
+  
   res.values <- data.table()
   for (i in 1:nperm){
     res.values <- rbind(res.values, result[[i]])
   }
-  write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts.case+size.ts.con, "FC", fc, "txt", sep = "."), quote = F, sep = "\t")
-
-  rm(res.values)
-  }
-  if(print_DEgenes == T){
-    res.DEgenes <- data.table()
-  for (i in 1:nperm){
-   res.DEgenes <- rbind(res.DEgenes, result[[nperm + i]])
-  }
-  write.table(res.DEgenes, file = paste("results.DEgenes", "Perm", nperm, "sizeTS", size.ts.case+size.ts.con,"FC", fc, "txt", sep = "."), quote = F, sep = "\t")
-  }
+  
+  
+  write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "txt", sep = "."), quote = F, sep = "\t")
   stopCluster(cl)
 }
+
+# function for cross-study sampling
+crossstudy <- function(nperm=10, 
+                       server = F, 
+                       classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
+                       info, 
+                       data,
+                       size.ts = 10,
+                       size.vs = 500,
+                       dir, 
+                       print_values = T, 
+                       cores = 12, 
+                       leukemia = F, 
+                       indices.test. = indices.test,
+                       indices.train. = indices.train,
+                       y.train. = y.train){ 
+  
+  ifelse(server == T, cl <- makeCluster(cores, outfile = ""), cl <- makeCluster(1, outfile = getwd()))
+  
+  registerDoParallel(cl)
+  
+  result <- foreach(j = 1:nperm,
+                    .combine = rbind,
+                    .packages = c("randomForest", "data.table", "class", "e1071", "ROCR", "multtest", "pamr", "MASS", "glmnet", "dplyr", "limma", "randomForest", "gtools"),
+                    .export = c("classify")
+  ) %dopar% {
+    print(paste("Permutation", j, sep = ":"))
+    # select indices
+    
+    if(size.ts > length(indices.train.[[j]])){
+      indices_used <- indices.train.[[j]]} else {
+        set.seed(j); indices_used <- sample(indices.train.[[j]],size.ts)
+      }
+    
+    if(size.ts == 100){
+      k<-0
+      while(k<=500){
+        if(sum(y.train.[indices_used])/100 < 0.1) {set.seed(i+rnorm(1));indices_used<-sample(indices.train.[[j]],100)} 
+        # if prevalence of training set for sample size 100 is smaller than 0.1, sample again (do that max 500 times)
+        k<-k+1
+      }
+    }
+    
+    if(size.ts == 250){
+      k<-0
+      while(k<=500){
+        if(sum(y.train.[indices_used])/250 < 0.1) {set.seed(i+rnorm(1));indices_used <- sample(indices.train.[[j]],250)} 
+        # if prevalence of training set for sample size 250 is smaller than 0.1, sample again (do that max 500 times)
+        k<-k+1
+      }
+    }
+    
+    
+    # create trainig set and validation set
+    ts. <- data[,indices_used]
+    vs. <- data[,indices.test.[[j]]]
+    
+    info.ts. <- info[info$Filename %in% colnames(ts.),]
+    info.vs. <- info[info$Filename %in% colnames(vs.),]
+    
+    # make sure that annotation and data are in the same order
+    info.ts. <- info.ts.[order(rownames(info.ts.)),]
+    ts. <- ts.[,order(colnames(ts.))]
+    info.vs. <- info.vs.[order(rownames(info.vs.)),]
+    vs. <- vs.[,order(colnames(vs.))]
+    
+    classes.ts. <- info.ts.$Condition
+    classes.vs. <- info.vs.$Condition
+    
+    # calculations
+    result <- classify(ts = ts., classes.ts = classes.ts., vs = vs., classes.vs = classes.vs., nperm = j, classifiers = classifiers.)
+    list(result)
+  }
+  setwd(dir)
+  
+  # reorder the output to a data frame
+  res.values <- data.table()
+  for (i in 1:nperm){
+    res.values <- rbind(res.values, result[[i]])
+  }
+  
+  # write output to folder
+  write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "sizeVS", size.vs, "txt", sep = "."), quote = F, sep = "\t")
+  stopCluster(cl)
+}
+
+
+
+# cross-platform prediction
+crossplatform <- function(nperm=10, 
+                                server = F, 
+                                classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"),
+                                info.ts, 
+                                data.ts,
+                                info.vs, 
+                                data.vs, 
+                                size.ts = 10,
+                                size.vs = 500,
+                                dir, 
+                                print_values = T, 
+                                cores = 12, 
+                                rank = F){ 
+  
+  ifelse(server == T, cl <- makeCluster(cores, outfile = ""), cl <- makeCluster(1, outfile = getwd()))
+  
+  registerDoParallel(cl)
+  
+  result <- foreach(j = 1:nperm,
+                    .combine = rbind,
+                    .packages = c("randomForest", "data.table", "class", "e1071", "ROCR", "multtest", "pamr", "MASS", "glmnet", "dplyr", "limma", "randomForest", "gtools"),
+                    .export = c("classify")
+  ) %dopar% {
+    print(paste("Permutation", j, sep = ":"))
+    info.ts$Filename <- as.character(info.ts$Filename)
+    info.vs$Filename <- as.character(info.vs$Filename)
+    set.seed(j)
+    files.ts <- c(sample(info.ts$Filename, size = size.ts))
+    set.seed(j)
+    files.vs <- c(sample(info.vs$Filename, size = size.vs))
+   
+    ts. <- data.ts[,files.ts]
+    vs. <- data.vs[,files.vs]
+    
+    # optional rank transformation
+    if (rank == T) { 
+    ts. <- t(ts.)
+    vs. <- t(vs.)  
+    ts.<-apply(ts.,2,rank)/(nrow(ts.)+1)
+    vs.<-apply(vs.,2,rank)/(nrow(vs.)+1)
+    ts.<-apply(ts.,2,qnorm)
+    vs.<-apply(vs.,2,qnorm)
+    ts. <- t(ts.)
+    vs. <- t(vs.)
+    }
+    
+    info.ts. <- info.ts[info.ts$Filename %in% files.ts,]
+    info.vs. <- info.vs[info.vs$Filename %in% files.vs,]
+    
+    info.ts. <- info.ts.[order(rownames(info.ts.)),]
+    ts. <- ts.[,order(colnames(ts.))]
+    info.vs. <- info.vs.[order(rownames(info.vs.)),]
+    vs. <- vs.[,order(colnames(vs.))]
+    
+    classes.ts. <- info.ts.$Condition
+    classes.vs. <- info.vs.$Condition
+    
+    result <- classify(ts = ts., classes.ts = classes.ts., vs = vs., classes.vs = classes.vs., nperm = j, classifiers = classifiers.)
+    list(result)
+  }
+  setwd(dir)
+  
+  res.values <- data.table()
+  for (i in 1:nperm){
+    res.values <- rbind(res.values, result[[i]])
+  }
+  
+  
+  write.table(res.values, file = paste("results.values", "Perm", nperm, "sizeTS", size.ts, "txt", sep = "."), quote = F, sep = "\t")
+  stopCluster(cl)
+}
+
 
 
 
