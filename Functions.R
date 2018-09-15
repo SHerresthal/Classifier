@@ -73,7 +73,7 @@ classify <- function(ts,
     }
     if (classifiers[i] == "LDA"){
       print(paste(classifiers[i], Sys.time()))
-      subset <- colSums(ts)!=0
+      subset <- colSums(ts)!=0 | colSums(vs)!=0
       ts.lda <- ts[,subset]
       model.temp <- lda(x = ts.lda, grouping = classes.ts)
       model.pred <- predict(model.temp, vs[,subset])$posterior
