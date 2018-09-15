@@ -9,37 +9,34 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Source functions
 ```{r}
-source("E:/Stefanie/Classifier/Git/Functions.R")
 ```
 
 
 # Prepare data info files
 
 
-# Server
+# Server: Run docker 
 ```{sh}
+# docker run -it --rm -v /data/data-04_b_22.7TB/Data_AML/:/data r-base /bin/bash
 
-docker run -it --rm -v /data/data-04_b_22.7TB/Data_AML/:/data r-base /bin/bash
+#Blade 12:
+#sudo docker run -it --rm -v /home/marc/steffi/:/data r-base /bin/bash
 
-Blade 12:
-sudo docker run -it --rm -v /home/marc/steffi/:/data r-base /bin/bash
-
-
+# Things to be updated in Container:
 apt-get update
 apt-get install libssl-dev/unstable
 apt-get install libcurl4-openssl-dev libxml2-dev
 ```
 
--d detached MOdus: Container l?uft weiter, auch wenn die Verbindung abbricht
+-d detached MOdus: Container läuft weiter, auch wenn die Verbindung abbricht
 ```{r}
 docker run -d -v /data/data-04_b_22.7TB/Data_AML/:/data r-base /bin/bash
 
-# Nachtr?glich in container einw?hlen: Welche dockercontainer laufen?
+# Nachträglich in container einwählen: Welche dockercontainer laufen?
 docker ps #--> Container ID suchen
 docker exec -it CONTAINER-ID R /bin/bash
 
 # blade 3:
-
 docker exec -it d5d69916591f /bin/bash
 ```
 
@@ -89,15 +86,62 @@ library("dplyr")
 
 
 ```{r}
+
+source("E:/Stefanie/Classifier/Git/Functions.R")
 load("E:/Stefanie/Classifier/Paper/Scripts/Datasets.RData")
 #load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
 #source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V3_LDA_AMLsubtypes.R")
 
 ```
 
-# Random sampling: 1A
+# Random sampling: Dataset 1, 1 permutation
 ```{r}
+test <- classify(ts = data.1[,1:100], 
+        classes.ts = info.1$Condition[1:100], 
+        vs = data.2, 
+        info.2$Condition, 
+        classifiers = "LASSO", 
+        predictions_table = T)
+
+# rank transformation of all samples, then random sampling 50/ 50
+
+data.all <- cbind(data.1, data.2, data.3)
+info.all <- rbind(info.1, info.2, info.3) 
+dim(data.all)
+dim(info.all)
+identical(rownames(info.all), colnames(data.all))
+
+data.all.rank <- data.all
+data.all.rank <- t(data.all.rank)
+data.all.rank <- apply(data.all.rank, 2, rank)/nrow()
+
+randomsampling(info = info.1, # metadata
+               data = data.1, # data
+               dir = "E:/Stefanie/Test", # output directory
+               nperm = 2, # number of permutations
+               server = F, # run on server?
+               classifiers. = c("LASSO"),
+               size.ts = 10, # training set size
+               size.vs = 500, # validation set size
+               leukemia = F, # run only leukemia samples
+               print_predictions = F,  # output also individual prediction results
+               cores = 1 #)
+)
+
+
+
+crossplatform(nperm = 2,  
+                    size.ts = 300, 
+                    info.ts = info.1[1:300,], 
+                    data.ts = data.1[,1:300],
+                    info.vs = info.2[1:1000,], 
+                    data.vs = data.2[,1:1000],
+                    size.vs = 1000,
+                    classifiers. = c("KNN", "LASSO"),
+                    server = T,
+                    cores = 1,
+                    dir = "E:/Stefanie/Test/" ,
+              print_predictions = T)
 
 ntest <- 500
 permute_ts_vs_random(info = info.1, 
@@ -110,588 +154,8 @@ permute_ts_vs_random(info = info.1,
                      dir = "/data/Results/Paper/Dataset_1/all/")
 
 
-
-
-classify(ts = t(data.1), 
-                     classes.ts = info.1$Condition, 
-                     vs = t(data.2), 
-                     classes.vs = info.2$Condition,  
-                     classifiers = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "LDA", "KNN", "LASSO", "RTF"), 
-                     measures = c("AUC", "train.error", "test.error", "SENS", "SPEC", "ACC"),
-                     predictions_table = T, 
-                     nperm = 1)
-
-debug(classify)
-
-
 ```
 
-# Random sampling: 1B:
-```{r}
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V5.R")
-
-
-nsamples <- sum(info.1$Disease %in% c("AML", "AMKL", "ALL", "CLL", "CML", "MDS", "DS transient myeloproliferative disorder", "T.ALL"))
-ntest <- floor(0.2 * nsamples)
-
-
-for(ntrain in c(100, 250, 500, 1000, 1500, 1748)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 100, info = info.1, data = data.1.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    leukemia = T,
-                    server = T,
-                    cores = 60,
-                    dir = "/data/Results/Paper/Dataset_1/leukemia/")
-}
-
-# blade 10
-for(ntrain in c(100, 250, 500, 1000, 1500)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 100, 
-                       info = info.1, 
-                       data = data.1.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    leukemia = T,
-                    server = T,
-                    cores = 60,
-                    dir = "/data/Results/Paper/Dataset_1/leukemia/")
-}
-
-
-```
-
-
-# Random sampling: 2A:
-
-```{r}
-nsamples <- sum(info.2$Condition == "CASE") + sum(info.2$Condition == "CONTROL")
-ntest <- floor(0.2 * nsamples)
-nsamples-ntest
-for(ntrain in c(100, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000, nsamples-ntest)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 1, info = info.2, data = data.2.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    leukemia = F,
-                    server = T,
-                    cores = 60,
-                    dir = "/data/Results/Paper/Dataset_2/all/")
-}
-
-
-
-```
-
-
-# Random sampling: 2B:
-Blade 10
-```{r}
-nsamples <- sum(info.2$Disease %in% c("AML", "AMKL", "ALL", "CLL", "CML", "MDS", "DS transient myeloproliferative disorder", "T.ALL"))
-ntest <- floor(0.2 * nsamples)
-
-# blade 10
-for(ntrain in c(100, 250, 500, 1000, 2000, 3000, 4000, nsamples-ntest)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 100, info = info.2, data = data.2.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    leukemia = T,
-                    server = T,
-                    cores = 60,
-                    dir = "/data/Results/Paper/Dataset_2/leukemia/")
-}
-
-permute_ts_vs_randomsampling(nperm = 1, info = info.2, data = data.2.red, 
-                    size.ts = 50, 
-                    size.vs = 50, 
-                    leukemia = T,
-                    server = T,
-                    cores = 1,
-                    dir = "/data/Results/Paper/Dataset_2/leukemia/")
-
-
-```
-
-# Random sampling: 3A:
-```{r}
-nsamples <- sum(info.3$Condition == "CASE") + sum(info.3$Condition == "CONTROL")
-ntest <- floor(0.2 * nsamples)
-for(ntrain in c(100, 250, 500, nsamples-ntest)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 100, info = info.3, data = data.3.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    leukemia = F,
-                    server = T,
-                    cores = 12,
-                    dir = "/data/Results/Paper/Dataset_3/all/")
-
-}
-  
-```
-
-
-# LDA
-```{r}
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V11.R")
-nsamples <- sum(info.3$Condition == "CASE") + sum(info.3$Condition == "CONTROL")
-ntest <- floor(0.2 * nsamples)
-for(ntrain in c(100, 250, 500, nsamples-ntest)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 100, info = info.3, data = data.3.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    classifiers. = c("LDA"),
-                    leukemia = F,
-                    server = T,
-                    cores = 12,
-                    dir = "/data/Results/Paper/Dataset_3/all/LDA")
-
-}
-
-# blade 9
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V11.R")
-nsamples <- sum(info.3$Condition == "CASE") + sum(info.3$Condition == "CONTROL")
-ntest <- floor(0.2 * nsamples)
-for(ntrain in c(nsamples-ntest)){
-  print(ntrain)
-  permute_ts_vs_randomsampling(nperm = 100, info = info.3, data = data.3.red, 
-                    size.ts = ntrain, 
-                    size.vs = ntest, 
-                    classifiers. = c("LDA"),
-                    leukemia = F,
-                    server = T,
-                    cores = 60,
-                    dir = "/data/Results/Paper/Dataset_3/all/LDA")
-
-}
-
-
-```
-
-
-
-
-
-# Cross-study sampling: Set parameters
-
-```{r}
-nperm_crossstudy <- 1
-ncores_crossstudy <- 1
-```
-
-# Cross-study sampling: 1A
-```{r}
-
-# all samples
-ntest <- 500
-for(ntrain in c(100, 250, 500, 1000, 1500, 2000)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = nperm_crossstudy, info = info.1, data = data.1.red, 
-                    server = T,
-                    size.ts = ntrain, 
-                    size.vs = ntest,
-                    cores = ncores_crossstudy,
-                    leukemia = F,
-                    dir = "/data/Results/Paper/Crossstudy/Dataset_1/all/")
-}
-```
-
-
-# Cross-study sampling: 1B
-```{r}
-
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V5.R")
-
-nsamples <- sum(info.1$Disease %in% c("MDS", "AMKL", "CLL", "CML", "ALL", "AML", "DS transient myeloproliferative disorder", "T.ALL"))
-ntest <- floor(0.2 * nsamples)
-
-for(ntrain in c(100, 250, 500, 1000, 1500, 1748)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 100, 
-                           info = info.1, 
-                           data = data.1.red, 
-                    server = T,
-                    size.ts = ntrain, 
-                    size.vs = ntest,
-                    cores = 60,
-                    leukemia = T,
-                    dir = "/data/Results/Paper/Crossstudy/Dataset_1/leukemia/")
-}
-
-
-nsamples <- sum(info.1$Disease %in% c("MDS", "AMKL", "CLL", "CML", "ALL", "AML", "DS transient myeloproliferative disorder", "T.ALL"))
-ntest <- floor(0.2 * nsamples)
-for(ntrain in c(1748)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 100, 
-                           info = info.1, 
-                           data = data.1.red, 
-                    server = T,
-                    size.ts = ntrain, 
-                    size.vs = ntest,
-                    cores = 60,
-                    leukemia = T,
-                    dir = "/data/Results/Paper/Crossstudy/Dataset_1/leukemia/")
-}
-
-
-```
-
-# Cross-study sampling: 2A
-
-```{r}
-# all samples
-# blade5
-
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V5.R")
-
-
-ntest <- floor(0.2 * ncol(data.2.red))
-ncol(data.2.red)-ntest
-
-for(ntrain in c(100, 250, 500, 1000, 2000, 3000, 4000, 5000, 6000)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 100, 
-                          info = info.2, 
-                          data = data.2.red, 
-                          server = T,
-                          size.ts = ntrain, 
-                          size.vs = ntest,
-                          cores = 60,
-                          leukemia = F,
-                          dir = "/data/Results/Paper/Crossstudy/Dataset_2/all/")
-}
-
-
-ntest <- floor(0.2 * ncol(data.2.red))
-ncol(data.2.red)-ntest
-
-for(ntrain in c(100, 250, 500, 1000, 2000, 3000, 4000)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 100, 
-                          info = info.2, 
-                          data = data.2.red, 
-                          server = T,
-                          size.ts = ntrain, 
-                          size.vs = ntest,
-                          cores = 10,
-                          leukemia = F,
-                          dir = "/data/Results/Paper/Crossstudy/Dataset_2/all/")
-}
-
-
-```
-
-# Cross-study sampling: 2B
-
-```{r}
-
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V5.R")
-
-nsamples <- sum(info.2$Disease %in% c("AML", "AMKL", "ALL", "CLL", "CML", "MDS", "DS transient myeloproliferative disorder", "T.ALL"))
-ntest <- floor(0.2 * nsamples)
-nsamples-ntest
-
-for(ntrain in c(100, 250, 500, 1000, 2000, 3000, 4000, 4842)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 100, 
-                          info = info.2, 
-                          data = data.2.red, 
-                          server = T,
-                          size.ts = ntrain, 
-                          size.vs = ntest,
-                          cores = 12,
-                          leukemia = T,
-                          dir = "/data/Results/Paper/Crossstudy/Dataset_2/leukemia/")
-}
-
-```
-
-# Cross-study sampling: 3A
-```{r}
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_V5.R")
-
-
-ntest <- floor(0.2 * ncol(data.3.red))
-ncol(data.3.red)-ntest
-
-for(ntrain in c(100, 250, 500, 750, 945)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 100, 
-                          info = info.3, 
-                          data = data.3.red, 
-                          server = T,
-                          size.ts = ntrain, 
-                          size.vs = ntest,
-                          cores = 60,
-                          classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                          leukemia = F,
-                          dir = "/data/Results/Paper/Crossstudy/Dataset_3/all/")
-}
-
-```
-# Cross-study sampling: 3B
-```{r}
-nsamples <- sum(info.3$Condition == "CASE") + sum(info.3$Disease %in% c("ALL", "CLL", "CML", "MDS"))
-ntest <- floor(0.2 * nsamples)
-nsamples-ntest
-
-for(ntrain in c(100, 250, 466)){
-  print(ntrain)
-  permute_ts_vs_crossstudy(nperm = 1, 
-                          info = info.2, data = data.2.red, 
-                          server = T,
-                          size.ts = ntrain, 
-                          size.vs = ntest,
-                          cores = 1,
-                          leukemia = F,
-                          dir = "/data/Results/Paper/Crossstudy/Dataset_3/leukemia/")
-}
-
-```
-
-
-
-# CROSS-Platform: Set parameters
-```{r}
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_180228_paper_aktuell_V3.R")
-
-
-
-nperm_crossplatform <- 1
-ncores <- 1
-
-```
-
-
-# Cross-Platform: 1A
-
-```{r}
-
-for(ntrain in c(100, 250, 500, 1000, 2000)){
-  print(ntrain)
-  permute_ts_vs_crossplatform(nperm = nperm_crossplatform,  
-                    size.ts = ntrain, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.2, 
-                    data.vs = data.2.red,
-                    size.vs = ncol(data.2.red),
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = ncores,
-                    dir = "/data/Results/Paper/Crossplatform/D1_D2")
-}
-
-permute_ts_vs_crossplatform(nperm = 1,  
-                    size.ts = 2500, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.2, 
-                    data.vs = data.2.red,
-                    size.vs = ncol(data.2.red),
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = 1,
-                    dir = "/data/Results/Paper/Crossplatform/D1_D2")
-
-```
-# Cross-Platform: 1B
-```{r}
-
-for(ntrain in c(100, 250, 500, 1000, 2000)){
-  print(ntrain)
-  permute_ts_vs_crossplatform(nperm = 50,  
-                    size.ts = ntrain, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.2, 
-                    data.vs = data.2.red,
-                    size.vs = ncol(data.2.red),
-                    #classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = 60,
-                    rank = T,
-                    dir = "/data/Results/Paper/Crossplatform_rank/D1_D2")
-}
-
-permute_ts_vs_crossplatform(nperm = 1,  
-                    size.ts = 2500, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.2, 
-                    data.vs = data.2.red,
-                    size.vs = ncol(data.2.red),
-                    server = T,
-                    cores = 1,
-                    rank = T,
-                    dir = "/data/Results/Paper/Crossplatform_rank/D1_D2")
-
-```
-# Cross-Platform: 2A
-
-```{r}
-for(ntrain in c(100, 250, 500, 1000, 2000, 4000, 6000, 8000)){
-  print(ntrain)
-  permute_ts_vs_crossplatform(nperm = nperm_crossplatform,  
-                    size.ts = ntrain, 
-                    info.ts = info.2, 
-                    data.ts = data.2.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = ncores,
-                    dir = "/data/Results/Paper/Crossplatform/D2_D3")
-}
-
-
-permute_ts_vs_crossplatform(nperm = 1,  
-                    size.ts = 8348, 
-                    info.ts = info.2, 
-                    data.ts = data.2.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = 1,
-                    dir = "/data/Results/Paper/Crossplatform/D2_D3")
-
-```
-
-# Cross-Platform: 2B
-
-
-
-
-
-```{r}
-
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_180228_paper_aktuell_V3.R")
-
-
-
-for(ntrain in c(100, 250, 500, 1000, 2000, 4000, 6000, 8000)){
-  print(ntrain)
-  permute_ts_vs_crossplatform(nperm = 50,  
-                    size.ts = ntrain, 
-                    info.ts = info.2, 
-                    data.ts = data.2.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    server = T,
-                    cores = 60,
-                    rank = T,
-                    dir = "/data/Results/Paper/Crossplatform_rank/D2_D3")
-}
-
-# blade 5
-permute_ts_vs_crossplatform(nperm = 1,  
-                    size.ts = 8348, 
-                    info.ts = info.2, 
-                    data.ts = data.2.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    server = T,
-                    cores = 1,
-                    rank = T,
-                    dir = "/data/Results/Paper/Crossplatform_rank/D2_D3")
-
-```
-
-# Cross-Platform: 3A
-
-```{r}
-for(ntrain in c(100, 250, 500, 1000, 2000)){
-  print(ntrain)
-  permute_ts_vs_crossplatform(nperm = nperm_crossplatform,  
-                    size.ts = ntrain, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = 12,
-                    dir = "/data/Results/Paper/Crossplatform/D1_D3")
-}
-
-permute_ts_vs_crossplatform(nperm = 1,  
-                    size.ts = 2500, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    classifiers. = c("SVM_linear", "SVM_radial", "SVM_polynomial", "SVM_sigmoid", "PAM", "KNN", "LASSO", "RTF"),
-                    server = T,
-                    cores = 1,
-                    dir = "/data/Results/Paper/Crossplatform/D1_D3")
-```
-
-# Cross-Platform: 3B
-
-```{r}
-
-load("/data/Results/Paper/Datasets_V4_for_Calculation.RData")
-source("/data/Results/Paper/load_packages.R")
-source("/data/Results/Paper/Functions_180228_paper_aktuell_V3.R")
-
-# blade 11
-for(ntrain in c(100, 250, 500, 1000, 2000)){
-  print(ntrain)
-  permute_ts_vs_crossplatform(nperm = 50,  
-                    size.ts = ntrain, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    server = T,
-                    cores = 60,
-                    rank = T,
-                    dir = "/data/Results/Paper/Crossplatform_rank/D1_D3")
-}
-permute_ts_vs_crossplatform(nperm = 1,  
-                    size.ts = 2500, 
-                    info.ts = info.1, 
-                    data.ts = data.1.red,
-                    info.vs = info.3, 
-                    data.vs = data.3.red,
-                    size.vs = ncol(data.3.red),
-                    server = T,
-                    cores = 1,
-                    rank = T,
-                    dir = "/data/Results/Paper/Crossplatform_rank/D1_D3")
-```
 
 
 
